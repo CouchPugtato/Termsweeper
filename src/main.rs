@@ -56,12 +56,25 @@ fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game)
             match key.code {
                 KeyCode::Char('q') => { return Ok(()); }
                 KeyCode::Esc => { return Ok(()); }
+
                 KeyCode::Up => { game.move_cursor(key.code); }
                 KeyCode::Down => { game.move_cursor(key.code); }
                 KeyCode::Left => { game.move_cursor(key.code); }
                 KeyCode::Right => { game.move_cursor(key.code); }
-                KeyCode::Enter => { game.reveal_cell(); }
+
+                KeyCode::Char('k') => { game.move_cursor(KeyCode::Up); }
+                KeyCode::Char('j') => { game.move_cursor(KeyCode::Down); }
+                KeyCode::Char('h') => { game.move_cursor(KeyCode::Left); }
+                KeyCode::Char('l') => { game.move_cursor(KeyCode::Right); }
+
+                KeyCode::Char('w') => { game.move_cursor(KeyCode::Up); }
+                KeyCode::Char('s') => { game.move_cursor(KeyCode::Down); }
+                KeyCode::Char('a') => { game.move_cursor(KeyCode::Left); }
+                KeyCode::Char('d') => { game.move_cursor(KeyCode::Right); }
+
                 KeyCode::Char(' ') => { game.toggle_flag(); }
+                KeyCode::Enter => { game.reveal_cell(); }
+
                 _ => { key_processed = false }
             }
 

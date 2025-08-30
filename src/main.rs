@@ -77,6 +77,7 @@ fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game)
                         KeyCode::Char(' ') => { game.toggle_flag(); }
                         KeyCode::Char('f') => { game.toggle_flag(); }
                         KeyCode::Enter => { game.reveal_cell(); }
+                        KeyCode::Char('e') => { game.reveal_cell(); }
                     
                         _ => { key_processed = false; }
                     }
@@ -86,7 +87,23 @@ fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game)
                     match key.code {
                         KeyCode::Char('q') => { return Ok(()); }
                         KeyCode::Esc => { return Ok(()); }
-                        _ => { key_processed = false; }
+
+                        KeyCode::Up => { continue; } // keep the movement keys from making the user quit
+                        KeyCode::Down => { continue; } // as to not exit the application without them fully
+                        KeyCode::Left => { continue; } // realizing that they had lost
+                        KeyCode::Right => { continue; }
+                    
+                        KeyCode::Char('k') => { continue; }
+                        KeyCode::Char('j') => { continue; }
+                        KeyCode::Char('h') => { continue; }
+                        KeyCode::Char('l') => { continue; }
+                    
+                        KeyCode::Char('w') => { continue; }
+                        KeyCode::Char('s') => { continue; }
+                        KeyCode::Char('a') => { continue; }
+                        KeyCode::Char('d') => { continue; }
+
+                        _ => { return Ok(()); } // any other key should allow the user to quit
                     }
                 }
             }
@@ -97,8 +114,10 @@ fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game)
 fn ui<B: Backend>(frame: &mut tui::Frame<B>, game: &mut Game) {
     let size = frame.size();
     
-    let top_left_text = Paragraph::new(Text::raw(format!("{} Flags Left", game.flags_available))) // change to real # of bombs - flags placed
-        .style(Style::default().fg(Color::White));
+    let top_left_text = 
+        if game.game_state == GameState::ACTIVE { Paragraph::new(Text::raw(format!("{} Flags Left", game.flags_available))).style(Style::default().fg(Color::White)) }
+        else { Paragraph::new(Text::raw("Game Over!".to_string())).style(Style::default().fg(Color::White)) };
+
     frame.render_widget(top_left_text, Rect::new(2, 1, 20, 1));
     
     let right_text_width = 18;

@@ -4,9 +4,12 @@ use crate::helpers::{incriment_neighbors, reveal_safe_neighbors};
 use crossterm::event::KeyCode;
 use rand::{thread_rng, Rng};
 use tui::{ 
-    backend::Backend, layout::Rect, style::{Color, Style}, text::Text, widgets::{Block, 
-    Borders, 
-    Paragraph}};
+    backend::Backend, 
+    layout::Rect, 
+    style::{Color, Style}, 
+    text::Text, 
+    widgets::{Block, Borders, Paragraph}
+};
 
 const CELL_WIDTH: u16 = 5;
 const CELL_HEIGHT: u16 = 3;
@@ -19,6 +22,7 @@ pub enum GameState {
     FAILED,
 }
 
+#[derive(Clone)]
 #[repr(usize)]
 pub enum Difficulty { // dictates the percentage of cells that should be mines
     EASY = 12,
@@ -33,7 +37,9 @@ pub struct Game {
     width: usize,
     height: usize,
     show_cursor: bool,
+    difficulty_level: Difficulty,
     pub game_state: GameState,
+    first_move_made: bool,
     game_end_animation_level: usize,
     game_time: Instant,
     pub flags_available: usize,
@@ -55,7 +61,6 @@ pub enum CellState {
 
 impl Game {
     pub fn new(width: usize, height: usize, difficulty: Difficulty) -> Self {
-        let mut rng = thread_rng();
         let mut grid= Vec::with_capacity(height);
         
         for _ in 0..height {
@@ -69,19 +74,7 @@ impl Game {
             grid.push(row);
         }
 
-        // place mines
-        let mines= width * height * difficulty as usize / 100; // truncate non integer mine count
-        let mut mines_placed = 0;
-        while mines_placed < mines {
-            let x = rng.gen_range(0..width);
-            let y = rng.gen_range(0..height);
-
-            if (grid[y][x].mines_seen >= 0) { // if the mines seen < 0 then it is a mine itself, should not alter
-                grid[y][x].mines_seen = -9; // TEMP, negative 9 to see if any mines are being touched by mines seen logic 
-                incriment_neighbors(x, y, &mut grid); 
-                mines_placed += 1;
-            }
-        }
+        let mines= width * height * difficulty.to_owned() as usize / 100; // truncate non integer mine count
 
         Game {
             grid,
@@ -90,7 +83,9 @@ impl Game {
             width,
             height,
             show_cursor: true,
+            difficulty_level: difficulty,
             game_state: GameState::ACTIVE,
+            first_move_made: false,
             game_end_animation_level: 0,
             game_time: Instant::now(),
             flags_available: mines,
@@ -123,11 +118,37 @@ impl Game {
             _ => {}
         }
     }
+
+    pub fn place_mines(&mut self, centerx: usize, centery: usize){
+        let width = self.grid[0].len();
+        let height = self.grid.len();
+        let mines= self.grid[0].len() * self.grid.len() * self.difficulty_level.to_owned() as usize / 100; // truncate non integer mine count
+        let mut rng = thread_rng();
+        
+        let mut mines_placed = 0;
+        while mines_placed < mines {
+            let x = rng.gen_range(0..width);
+            let y = rng.gen_range(0..height);
+
+            let distance = (x as isize - centerx as isize).abs() + (y as isize - centery as isize).abs(); // Minimum range of forced safe cells to ensure an area is cleared
+
+            if (self.grid[y][x].mines_seen >= 0 && distance > 2) { // if the mines seen < 0 then it is a mine itself, should not alter
+                self.grid[y][x].mines_seen = -9; // TEMP, negative 9 to see if any mines are being touched by mines seen logic 
+                incriment_neighbors(x, y, &mut self.grid); 
+                mines_placed += 1;
+            }
+        }
+    }
     
     pub fn reveal_cell(&mut self) {
+        if !self.first_move_made {
+            self.place_mines(self.cursor_x, self.cursor_y);
+            self.first_move_made = true;
+        }
+
         let cell: &mut Cell = &mut self.grid[self.cursor_y][self.cursor_x];
         
-        if cell.cell_state == CellState::REVEALED || cell.cell_state == CellState::FLAGGED { return }; // do not allow for flagged cells to be revealed
+        if cell.cell_state == CellState::REVEALED || cell.cell_state == CellState::FLAGGED { return } // do not allow for flagged cells to be revealed
 
         // handle game lose, otherwise decrease left by 1
         cell.cell_state = CellState::REVEALED;
@@ -145,9 +166,11 @@ impl Game {
     }
 
     pub fn toggle_flag(&mut self) {
+        // if !self.first_move_made { return } // do not allow for flagging before the first move is made
+
         let cell: &mut Cell = &mut self.grid[self.cursor_y][self.cursor_x];
         
-        if cell.cell_state == CellState::REVEALED { return }; // do not allow for flagging revealed squares
+        if cell.cell_state == CellState::REVEALED { return } // do not allow for flagging revealed squares
 
         cell.cell_state = 
             if cell.cell_state == CellState::HIDDEN { 

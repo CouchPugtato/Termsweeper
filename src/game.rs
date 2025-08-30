@@ -1,4 +1,4 @@
-use crate::helpers::incriment_neighbors;
+use crate::helpers::{incriment_neighbors, reveal_safe_neighbors};
 use crossterm::event::KeyCode;
 use rand::{thread_rng, Rng};
 use tui::{ 
@@ -124,6 +124,7 @@ impl Game {
         // handle game lose, otherwise decrease left by 1
         cell.cell_state = CellState::REVEALED;
         if cell.mines_seen >= 0 {
+            if (cell.mines_seen == 0) { reveal_safe_neighbors(self.cursor_x, self.cursor_y, &mut self.grid); }
             self.hidden_cells_remaining -= 1;
         } else { // if mines seen is negative it is itself a mine, and thus the game is lost 
             self.game_state = GameState::FAILED;

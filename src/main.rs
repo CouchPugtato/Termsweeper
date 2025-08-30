@@ -1,7 +1,7 @@
 mod game;
 mod helpers;
 
-use crate::game::Game;
+use crate::game::{Game, GameState};
 use std::{io, time::{Duration, Instant}};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -44,47 +44,57 @@ fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game)
     let debounce_duration = Duration::from_millis(125);
     
     loop {
-        terminal.draw(|f| ui(f, &game))?;
-        
+        terminal.draw(|f| ui(f, &mut game))?;
+
         key_processed = true;
         
-        if let Event::Key(key) = event::read()? {
-            let current_time = Instant::now();
+        if event::poll(Duration::from_millis(10))? {
+            if let Event::Key(key) = event::read()? {
+                    let current_time = Instant::now();
 
-            if current_time.duration_since(last_key_time) < debounce_duration { continue; }
-            
-            match key.code {
-                KeyCode::Char('q') => { return Ok(()); }
-                KeyCode::Esc => { return Ok(()); }
-
-                KeyCode::Up => { game.move_cursor(key.code); }
-                KeyCode::Down => { game.move_cursor(key.code); }
-                KeyCode::Left => { game.move_cursor(key.code); }
-                KeyCode::Right => { game.move_cursor(key.code); }
-
-                KeyCode::Char('k') => { game.move_cursor(KeyCode::Up); }
-                KeyCode::Char('j') => { game.move_cursor(KeyCode::Down); }
-                KeyCode::Char('h') => { game.move_cursor(KeyCode::Left); }
-                KeyCode::Char('l') => { game.move_cursor(KeyCode::Right); }
-
-                KeyCode::Char('w') => { game.move_cursor(KeyCode::Up); }
-                KeyCode::Char('s') => { game.move_cursor(KeyCode::Down); }
-                KeyCode::Char('a') => { game.move_cursor(KeyCode::Left); }
-                KeyCode::Char('d') => { game.move_cursor(KeyCode::Right); }
-
-                KeyCode::Char(' ') => { game.toggle_flag(); }
-                KeyCode::Char('f') => { game.toggle_flag(); }
-                KeyCode::Enter => { game.reveal_cell(); }
-
-                _ => { key_processed = false }
+                if current_time.duration_since(last_key_time) < debounce_duration { continue; }
+                
+                if game.game_state == GameState::ACTIVE {
+                    match key.code {
+                        KeyCode::Char('q') => { return Ok(()); }
+                        KeyCode::Esc => { return Ok(()); }
+                    
+                        KeyCode::Up => { game.move_cursor(key.code); }
+                        KeyCode::Down => { game.move_cursor(key.code); }
+                        KeyCode::Left => { game.move_cursor(key.code); }
+                        KeyCode::Right => { game.move_cursor(key.code); }
+                    
+                        KeyCode::Char('k') => { game.move_cursor(KeyCode::Up); }
+                        KeyCode::Char('j') => { game.move_cursor(KeyCode::Down); }
+                        KeyCode::Char('h') => { game.move_cursor(KeyCode::Left); }
+                        KeyCode::Char('l') => { game.move_cursor(KeyCode::Right); }
+                    
+                        KeyCode::Char('w') => { game.move_cursor(KeyCode::Up); }
+                        KeyCode::Char('s') => { game.move_cursor(KeyCode::Down); }
+                        KeyCode::Char('a') => { game.move_cursor(KeyCode::Left); }
+                        KeyCode::Char('d') => { game.move_cursor(KeyCode::Right); }
+                    
+                        KeyCode::Char(' ') => { game.toggle_flag(); }
+                        KeyCode::Char('f') => { game.toggle_flag(); }
+                        KeyCode::Enter => { game.reveal_cell(); }
+                    
+                        _ => { key_processed = false; }
+                    }
+                
+                    if key_processed { last_key_time = current_time; }
+                } else {
+                    match key.code {
+                        KeyCode::Char('q') => { return Ok(()); }
+                        KeyCode::Esc => { return Ok(()); }
+                        _ => { key_processed = false; }
+                    }
+                }
             }
-
-            if key_processed { last_key_time = current_time; }
         }
     }
 }
 
-fn ui<B: Backend>(frame: &mut tui::Frame<B>, game: &Game) {
+fn ui<B: Backend>(frame: &mut tui::Frame<B>, game: &mut Game) {
     let size = frame.size();
     
     let top_left_text = Paragraph::new(Text::raw(format!("{} Flags Left", game.flags_available))) // change to real # of bombs - flags placed

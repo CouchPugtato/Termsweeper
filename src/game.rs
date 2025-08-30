@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use crate::helpers::{incriment_neighbors, reveal_safe_neighbors};
 use crossterm::event::KeyCode;
 use rand::{thread_rng, Rng};
@@ -8,8 +10,9 @@ use tui::{
 
 const CELL_WIDTH: u16 = 5;
 const CELL_HEIGHT: u16 = 3;
+const END_ANIMATION_DELAY: Duration = Duration::from_millis(125);
 
-
+#[derive(PartialEq)]
 pub enum GameState {
     ACTIVE,
     SUCSESS,
@@ -30,9 +33,11 @@ pub struct Game {
     width: usize,
     height: usize,
     show_cursor: bool,
-    game_state: GameState,
-    pub flags_available: i32,
-    hidden_cells_remaining: i32,
+    pub game_state: GameState,
+    game_end_animation_level: usize,
+    game_time: Instant,
+    pub flags_available: usize,
+    pub hidden_cells_remaining: usize,
 }
 
 pub struct Cell {
@@ -45,6 +50,7 @@ pub enum CellState {
     HIDDEN,
     REVEALED,
     FLAGGED,
+    REVEALED_AFTER_END,
 }
 
 impl Game {
@@ -85,8 +91,10 @@ impl Game {
             height,
             show_cursor: true,
             game_state: GameState::ACTIVE,
-            flags_available: mines as i32,
-            hidden_cells_remaining: (width * height - mines) as i32,
+            game_end_animation_level: 0,
+            game_time: Instant::now(),
+            flags_available: mines,
+            hidden_cells_remaining: width * height - mines,
         }
     }
     
@@ -124,17 +132,23 @@ impl Game {
         // handle game lose, otherwise decrease left by 1
         cell.cell_state = CellState::REVEALED;
         if cell.mines_seen >= 0 {
-            if (cell.mines_seen == 0) { reveal_safe_neighbors(self.cursor_x, self.cursor_y, &mut self.grid); }
+            if (cell.mines_seen == 0) { 
+                reveal_safe_neighbors(self.cursor_x, self.cursor_y, &mut self.grid);
+                self.update_hidden_cells_remaining();
+            }
             self.hidden_cells_remaining -= 1;
         } else { // if mines seen is negative it is itself a mine, and thus the game is lost 
             self.game_state = GameState::FAILED;
         }
+
+        if self.hidden_cells_remaining <= 0 { self.game_state = GameState::SUCSESS; }
     }
 
     pub fn toggle_flag(&mut self) {
         let cell: &mut Cell = &mut self.grid[self.cursor_y][self.cursor_x];
         
         if cell.cell_state == CellState::REVEALED { return }; // do not allow for flagging revealed squares
+
         cell.cell_state = 
             if cell.cell_state == CellState::HIDDEN { 
                 self.flags_available -= 1;
@@ -144,9 +158,20 @@ impl Game {
                 CellState::HIDDEN 
             }
     }
+
+    
+    pub fn update_hidden_cells_remaining(&mut self) {
+        let mut count = 0;
+        for i in 0..self.grid.len() {
+            for j in 0..self.grid[0].len() {
+                if self.grid[i][j].cell_state == CellState::HIDDEN && self.grid[i][j].mines_seen >= 0 { count += 1; }
+            }
+        }
+        self.hidden_cells_remaining = count + 1;
+    }
 }
 
-pub fn render_grid<B: Backend>(frame: &mut tui::Frame<B>, game: &Game){
+pub fn render_grid<B: Backend>(frame: &mut tui::Frame<B>, game: &mut Game){
     let size =  frame.size();
     
     let grid_width = CELL_WIDTH * game.width as u16;
@@ -159,36 +184,97 @@ pub fn render_grid<B: Backend>(frame: &mut tui::Frame<B>, game: &Game){
     let grid_y = 
         if size.height > grid_height { (size.height - grid_height)/2 } 
         else { 0 };
-    
+
     for y in 0..game.height {
         for x in 0..game.width {
-            let cell = &game.grid[y][x];
+            let cell = &mut game.grid[y][x];
             let cell_x = grid_x + (x as u16 * CELL_WIDTH);
             let cell_y = grid_y + (y as u16 * CELL_HEIGHT);
-            
+
             if cell_x + CELL_WIDTH > size.width || cell_y + CELL_HEIGHT > size.height { continue; } // if cell is outside of terminal, do not render
-            
+
             let mut style = Style::default();
             if game.show_cursor && x == game.cursor_x && y == game.cursor_y { style = style.bg(Color::DarkGray); }
-            
+
             let mut cell_text = 
                 if cell.mines_seen < 0 { " ¤".to_string() }
                 else { format!(" {}", cell.mines_seen) };
             
+            match game.game_state {
+                GameState::ACTIVE => {
+                    game.game_end_animation_level = 0;
+                }
+                GameState::FAILED => {
+                    if game.game_state != GameState::ACTIVE && Instant::now().duration_since(game.game_time) > END_ANIMATION_DELAY {
+                        game.game_time = Instant::now();
+                        game.game_end_animation_level += 1;
+                    }
+                    
+                    let distance = (x as isize - game.cursor_x as isize).abs() + (y as isize - game.cursor_y as isize).abs();
+        
+                    if (distance as usize) < game.game_end_animation_level { 
+                        if cell.cell_state == CellState::REVEALED {
+                            style = style.bg(Color::Red);
+                        } else {
+                            cell.cell_state = CellState::REVEALED_AFTER_END;
+                            style = style.bg(Color::Red);
+                            style = style.fg(Color::Yellow);
+                        }
+                    }
+                }
+                GameState::SUCSESS => {
+                    if game.game_state != GameState::ACTIVE && Instant::now().duration_since(game.game_time) > END_ANIMATION_DELAY {
+                        game.game_time = Instant::now();
+                        game.game_end_animation_level += 1;
+                    }
+                    
+                    let distance = (x as isize - game.cursor_x as isize).abs() + (y as isize - game.cursor_y as isize).abs();
+        
+                    if (distance as usize) < game.game_end_animation_level { 
+                        if cell.cell_state == CellState::REVEALED {
+                            style = style.bg(Color::Green);
+                        } else {
+                            cell.cell_state = CellState::REVEALED_AFTER_END;
+                            style = style.fg(Color::LightYellow);
+                        }
+                    }
+                }
+            }
+
             match cell.cell_state {
                 CellState::HIDDEN => { 
                     cell_text = String::new(); 
-                },
+                }
                 CellState::FLAGGED => { 
                     style = style.bg(Color::Red); 
                     cell_text = " F".to_string();
-                },
+                }
                 CellState::REVEALED => { 
                     if cell.mines_seen < 0 { style = style.bg(Color::Red); }
                     cell_text = format!("{}", cell_text);
-                },
+                }
+                CellState::REVEALED_AFTER_END => { 
+                    if cell.mines_seen < 0 { style = style.bg(Color::Red); }
+                    cell_text = format!("{}", cell_text);
+                }
             }
-            
+
+            if cell.cell_state == CellState::REVEALED {
+                match cell.mines_seen {
+
+                    1 => { style = style.fg(Color::Blue); }
+                    2 => { style = style.fg(Color::Rgb(61, 179, 143)); }
+                    3 => { style = style.fg(Color::LightMagenta); }
+                    4 => { style = style.fg(Color::Yellow); }
+                    5 => { style = style.fg(Color::Red); }
+                    6 => { style = style.fg(Color::Red); }
+                    7 => { style = style.fg(Color::Red); }
+                    8 => { style = style.fg(Color::Red); }
+
+                    _ => {  style = style.fg(Color::White); }
+                }
+            }
+
             frame.render_widget({ 
                 Paragraph::new(Text::raw(cell_text))
                     .block({

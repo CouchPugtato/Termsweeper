@@ -31,6 +31,7 @@ pub struct Game {
     height: usize,
     show_cursor: bool,
     game_state: GameState,
+    pub flags_available: i32,
     hidden_cells_remaining: i32,
 }
 
@@ -76,8 +77,6 @@ impl Game {
             }
         }
 
-
-
         Game {
             grid,
             cursor_x: 0,
@@ -86,7 +85,8 @@ impl Game {
             height,
             show_cursor: true,
             game_state: GameState::ACTIVE,
-            hidden_cells_remaining: (width * height) as i32, 
+            flags_available: mines as i32,
+            hidden_cells_remaining: (width * height - mines) as i32,
         }
     }
     
@@ -119,7 +119,7 @@ impl Game {
     pub fn reveal_cell(&mut self) {
         let cell: &mut Cell = &mut self.grid[self.cursor_y][self.cursor_x];
         
-        if cell.cell_state == CellState::REVEALED { return };
+        if cell.cell_state == CellState::REVEALED || cell.cell_state == CellState::FLAGGED { return }; // do not allow for flagged cells to be revealed
 
         // handle game lose, otherwise decrease left by 1
         cell.cell_state = CellState::REVEALED;
@@ -135,16 +135,21 @@ impl Game {
         
         if cell.cell_state == CellState::REVEALED { return }; // do not allow for flagging revealed squares
         cell.cell_state = 
-            if cell.cell_state == CellState::HIDDEN { CellState::FLAGGED } 
-            else { CellState::HIDDEN }
+            if cell.cell_state == CellState::HIDDEN { 
+                self.flags_available -= 1;
+                CellState::FLAGGED 
+            } else {
+                self.flags_available += 1;
+                CellState::HIDDEN 
+            }
     }
 }
 
-pub fn render_grid<B: Backend>(frame: &mut tui::Frame<B>, app: &Game){
+pub fn render_grid<B: Backend>(frame: &mut tui::Frame<B>, game: &Game){
     let size =  frame.size();
     
-    let grid_width = CELL_WIDTH * app.width as u16;
-    let grid_height = CELL_HEIGHT * app.height as u16;
+    let grid_width = CELL_WIDTH * game.width as u16;
+    let grid_height = CELL_HEIGHT * game.height as u16;
     
     let grid_x = 
         if size.width > grid_width { (size.width - grid_width)/2 } 
@@ -154,34 +159,46 @@ pub fn render_grid<B: Backend>(frame: &mut tui::Frame<B>, app: &Game){
         if size.height > grid_height { (size.height - grid_height)/2 } 
         else { 0 };
     
-    for y in 0..app.height {
-        for x in 0..app.width {
-            let cell = &app.grid[y][x];
+    for y in 0..game.height {
+        for x in 0..game.width {
+            let cell = &game.grid[y][x];
             let cell_x = grid_x + (x as u16 * CELL_WIDTH);
             let cell_y = grid_y + (y as u16 * CELL_HEIGHT);
             
             if cell_x + CELL_WIDTH > size.width || cell_y + CELL_HEIGHT > size.height { continue; } // if cell is outside of terminal, do not render
             
-            let cell_area = Rect::new(cell_x, cell_y, CELL_WIDTH, CELL_HEIGHT);
-            
             let mut style = Style::default();
-            if app.show_cursor && x == app.cursor_x && y == app.cursor_y { style = style.bg(Color::DarkGray); }
+            if game.show_cursor && x == game.cursor_x && y == game.cursor_y { style = style.bg(Color::DarkGray); }
+            
+            let mut cell_text = 
+                if cell.mines_seen < 0 { " ¤".to_string() }
+                else { format!(" {}", cell.mines_seen) };
             
             match cell.cell_state {
-                CellState::HIDDEN => {},
-                CellState::FLAGGED => { style = style.bg(Color::Blue); },
-                CellState::REVEALED => { style = style.bg(Color::Green); },
+                CellState::HIDDEN => { 
+                    cell_text = String::new(); 
+                },
+                CellState::FLAGGED => { 
+                    style = style.bg(Color::Red); 
+                    cell_text = " F".to_string();
+                },
+                CellState::REVEALED => { 
+                    if cell.mines_seen < 0 { style = style.bg(Color::Red); }
+                    cell_text = format!("{}", cell_text);
+                },
             }
             
-            let block = Block::default()
-                .borders(Borders::ALL)
-                .style(style);
-            
-            let paragraph = Paragraph::new(Text::raw(format!(" {}", cell.mines_seen)))
-                .block(block)
-                .style(style);
-            
-            frame.render_widget(paragraph, cell_area);
+            frame.render_widget({ 
+                Paragraph::new(Text::raw(cell_text))
+                    .block({
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .style(style) 
+                        })
+                    .style(style) 
+                }, 
+                Rect::new(cell_x, cell_y, CELL_WIDTH, CELL_HEIGHT)
+            );
         }
     }
 }

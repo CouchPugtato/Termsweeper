@@ -9,7 +9,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use tui::{
-    backend::CrosstermBackend, layout::Rect, prelude::Backend, style::{Color, Style}, text::{Line, Span}, widgets::Paragraph, Terminal
+    backend::CrosstermBackend, layout::Rect, prelude::Backend, style::{Color, Style}, text::Text, widgets::Paragraph, Terminal
 };
 
 
@@ -73,6 +73,7 @@ fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game)
                 KeyCode::Char('d') => { game.move_cursor(KeyCode::Right); }
 
                 KeyCode::Char(' ') => { game.toggle_flag(); }
+                KeyCode::Char('f') => { game.toggle_flag(); }
                 KeyCode::Enter => { game.reveal_cell(); }
 
                 _ => { key_processed = false }
@@ -83,10 +84,10 @@ fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game)
     }
 }
 
-fn ui<B: Backend>(frame: &mut tui::Frame<B>, app: &Game) {
+fn ui<B: Backend>(frame: &mut tui::Frame<B>, game: &Game) {
     let size = frame.size();
     
-    let top_left_text = Paragraph::new(Line::from(vec![Span::raw("X flags to place")])) // change to real # of bombs - flags placed
+    let top_left_text = Paragraph::new(Text::raw(format!("{} Flags Left", game.flags_available))) // change to real # of bombs - flags placed
         .style(Style::default().fg(Color::White));
     frame.render_widget(top_left_text, Rect::new(2, 1, 20, 1));
     
@@ -94,9 +95,9 @@ fn ui<B: Backend>(frame: &mut tui::Frame<B>, app: &Game) {
     let right_text_x =
         if size.width > right_text_width + 2 { size.width - right_text_width - 2 }
         else { 0 };
-    let top_right_text: Paragraph<'_> = Paragraph::new(Line::from(vec![Span::raw("Press 'q' to quit")]))
+    let top_right_text: Paragraph<'_> = Paragraph::new(Text::raw("press 'q' to quit"))
         .style(Style::default().fg(Color::White));
     frame.render_widget(top_right_text, Rect::new(right_text_x, 1, right_text_width, 1));
     
-    game::render_grid(frame, app);
+    game::render_grid(frame, game);
 }

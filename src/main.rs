@@ -18,6 +18,7 @@ fn main() -> Result<(), io::Error> {
     let mut width = ((term_width as usize - 10) / game::CELL_WIDTH as usize).max(5).min(30); // allow some space for borders and UI elements
     let mut height = ((term_height as usize - 5) / game::CELL_HEIGHT as usize).max(5).min(20);
     let mut difficulty = Difficulty::MEDIUM;
+    let mut hide_timer = false;
     
     let args: Vec<String> = env::args().collect();
     for i in 1..args.len() {
@@ -46,6 +47,9 @@ fn main() -> Result<(), io::Error> {
                     }
                 }
             },
+            "--hide-timer" | "-t" => {
+                hide_timer = true;
+            },
             "--help" => {
                 println!("Termsweeper - A terminal-based Minesweeper game
                     \n\nUsage: termsweeper [OPTIONS]
@@ -53,6 +57,7 @@ fn main() -> Result<(), io::Error> {
                     \n  -w, --width WIDTH        Set grid width (with current terminal size: {})
                     \n  -h, --height HEIGHT      Set grid height (with current terminal size: {})
                     \n  -d, --difficulty LEVEL   Set difficulty level: easy, medium, hard (default: medium)
+                    \n  -t, --hide-timer         Set the visability of the game clock (default: visable)
                     \n  --help                   Gives you all of this very helpful information!\n", 
                     width, height);
                 return Ok(());
@@ -68,7 +73,7 @@ fn main() -> Result<(), io::Error> {
     let mut terminal: Terminal<CrosstermBackend<io::Stdout>> = Terminal::new(backend)?;
     
     let app = Game::new(width, height, difficulty);
-    let res = run_app(&mut terminal, app);
+    let res = run_app(&mut terminal, app, hide_timer);
     
     disable_raw_mode()?;
     execute!(
@@ -85,13 +90,13 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game) -> io::Result<()> {
+fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game, hide_timer: bool) -> io::Result<()> {
     let mut key_processed: bool;
     let mut last_key_time = Instant::now();
     let debounce_duration = Duration::from_millis(125);
     
     loop {
-        terminal.draw(|f| ui(f, &mut game))?;
+        terminal.draw(|f| ui(f, &mut game, hide_timer))?;
 
         key_processed = true;
         
@@ -158,7 +163,7 @@ fn run_app<B: tui::backend::Backend>(terminal: &mut Terminal<B>, mut game: Game)
     }
 }
 
-fn ui<B: Backend>(frame: &mut tui::Frame<B>, game: &mut Game) {
+fn ui<B: Backend>(frame: &mut tui::Frame<B>, game: &mut Game, hide_timer: bool) {
     let size = frame.size();
     
     let top_left_text = 
@@ -166,6 +171,25 @@ fn ui<B: Backend>(frame: &mut tui::Frame<B>, game: &mut Game) {
         else { Paragraph::new(Text::raw("Game Over!".to_string())).style(Style::default().fg(Color::White)) };
 
     frame.render_widget(top_left_text, Rect::new(2, 1, 20, 1));
+    
+    if !hide_timer {
+        let elapsed = 
+            if game.game_state == GameState::ACTIVE { Instant::now().duration_since(game.game_time) }
+            else { game.game_end_time.duration_since(game.game_start_time) };
+        
+        let elapsed_seconds = elapsed.as_secs();
+        let timer_text = format!(
+            "Time: {:02}:{:02}:{:03}", 
+            elapsed_seconds / 60, // minutes
+            elapsed_seconds % 60, // seconds
+            elapsed.subsec_millis() // miliseconds
+        );
+
+        let timer_display = Paragraph::new(Text::raw(timer_text.to_owned()))
+            .style(Style::default().fg(Color::White));
+        
+        frame.render_widget(timer_display, Rect::new((size.width - timer_text.len() as u16) / 2, 1, timer_text.len() as u16, 1));
+    }
     
     let right_text_width = 18;
     let right_text_x =

@@ -13,7 +13,7 @@ use tui::{
 
 pub(crate) const CELL_WIDTH: u16 = 5;
 pub(crate) const CELL_HEIGHT: u16 = 3;
-const END_ANIMATION_DELAY: Duration = Duration::from_millis(125);
+pub(crate) const END_ANIMATION_DELAY: Duration = Duration::from_millis(125);
 
 #[derive(PartialEq)]
 pub enum GameState {
@@ -40,8 +40,10 @@ pub struct Game {
     difficulty_level: Difficulty,
     pub game_state: GameState,
     first_move_made: bool,
-    game_end_animation_level: usize,
-    game_time: Instant,
+    pub game_end_animation_level: usize,
+    pub game_time: Instant,
+    pub game_start_time: Instant,
+    pub game_end_time: Instant,
     pub flags_available: usize,
     pub hidden_cells_remaining: usize,
 }
@@ -88,6 +90,8 @@ impl Game {
             first_move_made: false,
             game_end_animation_level: 0,
             game_time: Instant::now(),
+            game_start_time: Instant::now(),
+            game_end_time: Instant::now(),
             flags_available: mines,
             hidden_cells_remaining: width * height - mines,
         }
@@ -158,16 +162,18 @@ impl Game {
                 self.update_hidden_cells_remaining();
             }
             self.hidden_cells_remaining -= 1;
+            
+            if self.hidden_cells_remaining <= 0 { 
+                self.game_state = GameState::SUCSESS; 
+                self.game_end_time = Instant::now();
+            }
         } else { // if mines seen is negative it is itself a mine, and thus the game is lost 
             self.game_state = GameState::FAILED;
+            self.game_end_time = Instant::now();
         }
-
-        if self.hidden_cells_remaining <= 0 { self.game_state = GameState::SUCSESS; }
     }
 
     pub fn toggle_flag(&mut self) {
-        // if !self.first_move_made { return } // do not allow for flagging before the first move is made
-
         let cell: &mut Cell = &mut self.grid[self.cursor_y][self.cursor_x];
         
         if cell.cell_state == CellState::REVEALED { return } // do not allow for flagging revealed squares
@@ -298,7 +304,7 @@ pub fn render_grid<B: Backend>(frame: &mut tui::Frame<B>, game: &mut Game){
                 }
             }
 
-            frame.render_widget({ 
+            frame.render_widget({
                 Paragraph::new(Text::raw(cell_text))
                     .block({
                         Block::default()

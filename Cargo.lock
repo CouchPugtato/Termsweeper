@@ -3,15 +3,6 @@
 version = 4
 
 [[package]]
-name = "Termsweeper"
-version = "0.1.0"
-dependencies = [
- "crossterm",
- "rand",
- "ratatui",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -278,6 +269,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "termsweeper"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "rand",
+ "ratatui",
 ]
 
 [[package]]

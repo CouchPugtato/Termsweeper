@@ -1,9 +1,9 @@
 mod game;
 mod helpers;
 
-use crate::game::{Game, GameState};
-use std::{io, time::{Duration, Instant}};
-use crossterm::{
+use crate::game::{Game, GameState, Difficulty};
+use std::{env, io, time::{Duration, Instant}};
+use crossterm::{  
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -14,14 +14,59 @@ use tui::{
 
 
 fn main() -> Result<(), io::Error> {
+    let mut width = 10; // defaults, TODO: Make dependant on winow size
+    let mut height = 10;
+    let mut difficulty = Difficulty::MEDIUM;
+    
+    let args: Vec<String> = env::args().collect();
+    for i in 1..args.len() {
+        match args[i].as_str() {
+            "--width" | "-w" => {
+                if i + 1 < args.len() {
+                    if let Ok(w) = args[i + 1].parse::<usize>() {
+                        width = w;
+                    }
+                }
+            },
+            "--height" | "-h" => {
+                if i + 1 < args.len() {
+                    if let Ok(h) = args[i + 1].parse::<usize>() {
+                        height = h;
+                    }
+                }
+            },
+            "--difficulty" | "-d" => {
+                if i + 1 < args.len() {
+                    match args[i + 1].to_lowercase().as_str() {
+                        "easy" | "e" => difficulty = Difficulty::EASY,
+                        "medium" | "m" => difficulty = Difficulty::MEDIUM,
+                        "hard" | "h" => difficulty = Difficulty::HARD,
+                        _ => {}
+                    }
+                }
+            },
+            "--help" => {
+                println!("Termsweeper - A terminal-based Minesweeper game\n");
+                println!("Usage: termsweeper [OPTIONS]\n");
+                println!("Options:");
+                println!("  -w, --width WIDTH        Set grid width (default: 10)");
+                println!("  -h, --height HEIGHT      Set grid height (default: 10)");
+                println!("  -d, --difficulty LEVEL   Set difficulty level: easy, medium, hard (default: medium)");
+                println!("  --help                   You should already know what this one does! ,':(");
+                return Ok(());
+            },
+            _ => {}
+        }
+    }
+    
     enable_raw_mode()?;
     let mut stdout: io::Stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend: CrosstermBackend<io::Stdout> = CrosstermBackend::new(stdout);
     let mut terminal: Terminal<CrosstermBackend<io::Stdout>> = Terminal::new(backend)?;
     
-    let app = Game::new(10, 10, game::Difficulty::MEDIUM); // change to allow for different sizes, based on window size?
-    let res= run_app(&mut terminal, app);
+    let app = Game::new(width, height, difficulty);
+    let res = run_app(&mut terminal, app);
     
     disable_raw_mode()?;
     execute!(

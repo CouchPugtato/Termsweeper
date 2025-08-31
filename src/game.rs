@@ -11,8 +11,8 @@ use tui::{
     widgets::{Block, Borders, Paragraph}
 };
 
-const CELL_WIDTH: u16 = 5;
-const CELL_HEIGHT: u16 = 3;
+pub(crate) const CELL_WIDTH: u16 = 5;
+pub(crate) const CELL_HEIGHT: u16 = 3;
 const END_ANIMATION_DELAY: Duration = Duration::from_millis(125);
 
 #[derive(PartialEq)]

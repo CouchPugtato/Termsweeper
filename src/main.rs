@@ -6,16 +6,17 @@ use std::{env, io, time::{Duration, Instant}};
 use crossterm::{  
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, size},
 };
 use tui::{
     backend::CrosstermBackend, layout::Rect, prelude::Backend, style::{Color, Style}, text::Text, widgets::Paragraph, Terminal
 };
 
-
 fn main() -> Result<(), io::Error> {
-    let mut width = 10; // defaults, TODO: Make dependant on winow size
-    let mut height = 10;
+
+    let (term_width, term_height) = size()?;
+    let mut width = ((term_width as usize - 10) / game::CELL_WIDTH as usize).max(5).min(30); // allow some space for borders and UI elements
+    let mut height = ((term_height as usize - 5) / game::CELL_HEIGHT as usize).max(5).min(20);
     let mut difficulty = Difficulty::MEDIUM;
     
     let args: Vec<String> = env::args().collect();
@@ -46,13 +47,14 @@ fn main() -> Result<(), io::Error> {
                 }
             },
             "--help" => {
-                println!("Termsweeper - A terminal-based Minesweeper game\n");
-                println!("Usage: termsweeper [OPTIONS]\n");
-                println!("Options:");
-                println!("  -w, --width WIDTH        Set grid width (default: 10)");
-                println!("  -h, --height HEIGHT      Set grid height (default: 10)");
-                println!("  -d, --difficulty LEVEL   Set difficulty level: easy, medium, hard (default: medium)");
-                println!("  --help                   You should already know what this one does! ,':(");
+                println!("Termsweeper - A terminal-based Minesweeper game
+                    \n\nUsage: termsweeper [OPTIONS]
+                    \n\nOptions:
+                    \n  -w, --width WIDTH        Set grid width (with current terminal size: {})
+                    \n  -h, --height HEIGHT      Set grid height (with current terminal size: {})
+                    \n  -d, --difficulty LEVEL   Set difficulty level: easy, medium, hard (default: medium)
+                    \n  --help                   Gives you all of this very helpful information!\n", 
+                    width, height);
                 return Ok(());
             },
             _ => {}

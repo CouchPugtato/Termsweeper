@@ -44,7 +44,7 @@ pub struct Game {
     pub game_time: Instant,
     pub game_start_time: Instant,
     pub game_end_time: Instant,
-    pub flags_available: usize,
+    pub flags_available: i32,
     pub hidden_cells_remaining: usize,
 }
 
@@ -92,7 +92,7 @@ impl Game {
             game_time: Instant::now(),
             game_start_time: Instant::now(),
             game_end_time: Instant::now(),
-            flags_available: mines,
+            flags_available: mines as i32,
             hidden_cells_remaining: width * height - mines,
         }
     }
